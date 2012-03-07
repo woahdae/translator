@@ -255,21 +255,29 @@ module ActionView #:nodoc:
       # default to an empty scope
       scope = []
 
-      # Use the template for scoping if there is a templ
-      unless self.template.nil?
-        # The outer scope will typically be the controller name ("blog_posts")
-        # but can also be a dir of shared partials ("shared").
-        outer_scope = self.template.base_path
-        
-        # The template will be the view being rendered ("show.erb" or "_ad.erb")
-        inner_scope = self.template.name
-        
-        # Partials template names start with underscore, which should be removed
-        inner_scope.sub!(/^_/, '')
+      if respond_to?(:controller) # Rails 3
+        outer_scope = if controller.respond_to?(:controller_name) # Not a mailer
+          controller.controller_name
+        elsif controller.respond_to?(:mailer_name)
+          controller.mailer_name
+        end
+        inner_scope = controller.action_name
+      else
+        # Use the template for scoping if there is a templ
+        unless self.template.nil?
+          # The outer scope will typically be the controller name ("blog_posts")
+          # but can also be a dir of shared partials ("shared").
+          outer_scope = self.template.base_path
 
-        scope = [outer_scope, inner_scope]
+          # The template will be the view being rendered ("show.erb" or "_ad.erb")
+          inner_scope = self.template.name
+        end
       end
-      
+
+      # Partials template names start with underscore, which should be removed
+      inner_scope.sub!(/^_/, '') if inner_scope
+      scope = [outer_scope, inner_scope].compact
+
       # In the case of a missing translation, fall back to letting TranslationHelper
       # put in span tag for a translation_missing.
       begin
