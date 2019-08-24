@@ -246,80 +246,77 @@ module Translator
   end
 end
 
-module ActionView #:nodoc:
-  class Base
-    # Redefine the +translate+ method in ActionView (contributed by TranslationHelper) that is
-    # context-aware of what view (or partial) is being rendered. 
-    # Initial scoping will be scoped to [:controller_name :view_name]
-    def translate_with_context(key, options={})
-      # default to an empty scope
-      scope = []
+module Translator::ActionViewExtensions #:nodoc:
+  # Redefine the +translate+ method in ActionView (contributed by TranslationHelper) that is
+  # context-aware of what view (or partial) is being rendered. 
+  # Initial scoping will be scoped to [:controller_name :view_name]
+  def translate(key, options={})
+    # default to an empty scope
+    scope = []
 
-      if respond_to?(:controller) # Rails 3
-        outer_scope = if controller.respond_to?(:controller_name) # Not a mailer
-          controller.controller_name
-        elsif controller.respond_to?(:mailer_name)
-          controller.mailer_name
-        end
-        inner_scope = controller.action_name
-      else
-        # Use the template for scoping if there is a templ
-        unless self.template.nil?
-          # The outer scope will typically be the controller name ("blog_posts")
-          # but can also be a dir of shared partials ("shared").
-          outer_scope = self.template.base_path
-
-          # The template will be the view being rendered ("show.erb" or "_ad.erb")
-          inner_scope = self.template.name
-        end
+    if respond_to?(:controller) # Rails 3
+      outer_scope = if controller.respond_to?(:controller_name) # Not a mailer
+        controller.controller_name
+      elsif controller.respond_to?(:mailer_name)
+        controller.mailer_name
       end
+      inner_scope = controller.action_name
+    else
+      # Use the template for scoping if there is a templ
+      unless self.template.nil?
+        # The outer scope will typically be the controller name ("blog_posts")
+        # but can also be a dir of shared partials ("shared").
+        outer_scope = self.template.base_path
 
-      # Partials template names start with underscore, which should be removed
-      inner_scope.sub!(/^_/, '') if inner_scope
-      scope = [outer_scope, inner_scope].compact
+        # The template will be the view being rendered ("show.erb" or "_ad.erb")
+        inner_scope = self.template.name
+      end
+    end
 
-      # In the case of a missing translation, fall back to letting TranslationHelper
-      # put in span tag for a translation_missing.
-      begin
-        Translator.translate_with_scope(scope, key, options.merge({:raise => true}))
-      rescue Translator::TranslatorError, I18n::MissingTranslationData => exc
-        # Call the original translate method
-        str = translate_without_context(key, options)
+    # Partials template names start with underscore, which should be removed
+    inner_scope.sub!(/^_/, '') if inner_scope
+    scope = [outer_scope, inner_scope].compact
+
+    # In the case of a missing translation, fall back to letting TranslationHelper
+    # put in span tag for a translation_missing.
+    begin
+      Translator.translate_with_scope(scope, key, options.merge({:raise => true}))
+    rescue Translator::TranslatorError, I18n::MissingTranslationData => exc
+      # Call the original translate method
+      str = super(key, options)
+      
+      # View helper adds the translation missing span like:
+      # In strict mode, do not allow TranslationHelper to add "translation missing" span like:
+      # <span class="translation_missing">en, missing_string</span>
+      if str =~ /span class\=\"translation_missing\"/
+        # In strict mode, do not allow TranslationHelper to add "translation missing"
+        raise if Translator.strict_mode?
         
-        # View helper adds the translation missing span like:
-        # In strict mode, do not allow TranslationHelper to add "translation missing" span like:
-        # <span class="translation_missing">en, missing_string</span>
-        if str =~ /span class\=\"translation_missing\"/
-          # In strict mode, do not allow TranslationHelper to add "translation missing"
-          raise if Translator.strict_mode?
-          
-          # Invoke callback if it is defined
-          Translator.missing_translation_callback(exc, key, options)
-        end
-
-        str
+        # Invoke callback if it is defined
+        Translator.missing_translation_callback(exc, key, options)
       end
+
+      str
     end
-  
-    alias_method_chain :translate, :context
-    alias :t :translate
   end
+
+  alias :t :translate
 end
 
-module ActionController #:nodoc:
-  class Base
-    
-    # Add a +translate+ (or +t+) method to ActionController that is context-aware of what controller and action
-    # is being invoked. Initial scoping will be [:controller_name :action_name] when looking up keys. Example would be
-    # +['posts' 'show']+ for the +PostsController+ and +show+ action.
-    def translate_with_context(key, options={})
-      Translator.translate_with_scope([self.controller_name, self.action_name], key, options)
-    end
-  
-    alias_method_chain :translate, :context
-    alias :t :translate
+ActionView::Base.send(:prepend, Translator::ActionViewExtensions)
+
+module Translator::ActionControllerExtensions #:nodoc:
+  # Add a +translate+ (or +t+) method to ActionController that is context-aware of what controller and action
+  # is being invoked. Initial scoping will be [:controller_name :action_name] when looking up keys. Example would be
+  # +['posts' 'show']+ for the +PostsController+ and +show+ action.
+  def translate(key, options={})
+    Translator.translate_with_scope([self.controller_name, self.action_name], key, options)
   end
+
+  alias :t :translate
 end
+
+ActionController::Base.send(:prepend, Translator::ActionControllerExtensions)
 
 module ActiveRecord #:nodoc:
   class Base
