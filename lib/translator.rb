@@ -260,7 +260,7 @@ module Translator::ActionViewExtensions #:nodoc:
       elsif controller.respond_to?(:mailer_name)
         controller.mailer_name
       end
-      inner_scope = controller.action_name
+      inner_scope = controller.action_name.dup
     else
       # Use the template for scoping if there is a templ
       unless self.template.nil?
@@ -269,7 +269,7 @@ module Translator::ActionViewExtensions #:nodoc:
         outer_scope = self.template.base_path
 
         # The template will be the view being rendered ("show.erb" or "_ad.erb")
-        inner_scope = self.template.name
+        inner_scope = self.template.name.dup
       end
     end
 
