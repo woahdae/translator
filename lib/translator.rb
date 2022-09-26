@@ -283,7 +283,7 @@ module Translator::ActionViewExtensions #:nodoc:
       Translator.translate_with_scope(scope, key, options.merge({:raise => true}))
     rescue Translator::TranslatorError, I18n::MissingTranslationData => exc
       # Call the original translate method
-      str = super(key, options)
+      str = super(key, **options)
       
       # View helper adds the translation missing span like:
       # In strict mode, do not allow TranslationHelper to add "translation missing" span like:
