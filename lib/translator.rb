@@ -97,7 +97,7 @@ module Translator
     
       begin
         # try to find key within scope (dup the options because I18n modifies the hash)
-        str = I18n.translate(key, scoped_options.dup)
+        str = I18n.translate(key, **scoped_options.dup)
       rescue I18n::MissingTranslationData => exc
         # did not find the string, remove a layer of scoping.
         # break when there are no more layers to remove (pop returns nil)
